@@ -5,7 +5,10 @@ import librosa.display
 import IPython.display
 import matplotlib.pyplot as plt
 import youtube_dl
-
+            
+import csv
+import os
+import numpy as np
 
 def scrape_songs():
     '''
@@ -41,6 +44,49 @@ def scrape_songs():
 
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             ydl.download([playlist])
+
+
+def process_songs():
+    header = 'name tempo beats chroma_stft rmse spec_cent spec_bw rolloff zcr'.split()
+    header += ['mfcc_' + str(i) for i in range(1,12)] + ['label']
+    file = open('data.csv', 'w', newline='')
+
+    with file:
+        writer = csv.writer(file)
+        writer.writerow(header)
+        genres = ['country', 'jazz'] #, 'metal', 'hip_hop', 'electronic', 'classical']
+
+    for genre in genres:
+        for filename in os.listdir('./songs/' + genre):
+            if filename.endswith('.mp3'):
+                songname = f'./songs/{genre}/{filename}'
+                y, sr = librosa.load(songname, mono=True, duration=180, sr=None)
+                tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+                chroma_stft = librosa.feature.chroma_stft(y=y, sr=sr)
+                rmse = librosa.feature.rmse(y=y)
+                spec_cent = librosa.feature.spectral_centroid(y=y, sr=sr)
+                spec_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+                rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
+                zcr = librosa.feature.zero_crossing_rate(y)
+                mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=12)
+                label = genre.title()
+
+                to_append = f'{tempo}, {beats.shape[0]}, {np.mean(chroma_stft)}, {np.mean(rmse)},'
+                to_append += f'{np.mean(spec_cent)}, {np.mean(spec_bw)}, {np.mean(rolloff)}, {np.mean(zcr)}'    
+
+                for e in mfcc[1:]:
+                    to_append += f',{np.mean(e)}'
+
+                to_append += f',{label}'
+                file = open('data.csv', 'a', newline='')
+
+                with file:
+                    writer = csv.writer(file)
+                    song_row = [filename] + to_append.split(',')
+                    writer.writerow(song_row)
+            
+            
+            
             
             
 def read_songs(n=None, sr=None, folder=None, suffix=['mp3', 'm4a'], verbose=False):
